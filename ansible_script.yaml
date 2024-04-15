@@ -1,0 +1,48 @@
+---
+- name: Deploy Flask App to EC2 Instances
+  hosts: ec2_instances
+  become: yes
+  vars:
+    flask_app_name: "app"
+    flask_app_path: "/Harpal_Challeng/app"
+    user: "ec2-user"  # EC2 user (can be different based on AMI)
+    app_port: 5000
+  tasks:
+    - name: Update package cache
+      yum:
+        name: '*'
+        state: latest
+
+    - name: Install Python3 and pip
+      yum:
+        name:
+          - python3
+          - python3-pip
+        state: present
+
+    - name: Install required Python packages
+      pip:
+        name:
+          - Flask
+          - gunicorn
+        executable: pip3
+
+    - name: Copy Flask app to EC2 instance
+      copy:
+        src: "{{ flask_app_path }}"
+        dest: "/home/{{ user }}/{{ flask_app_name }}"
+        owner: "{{ user }}"
+        group: "{{ user }}"
+        mode: 0755
+
+    - name: Start Flask app with gunicorn
+      command:
+        cmd: "cd /home/{{ user }}/{{ flask_app_name }} && gunicorn -b 0.0.0.0:{{ app_port }} app:app &"
+        async: 60
+        poll: 0
+
+    - name: Allow traffic on app_port
+      firewalld:
+        service: "{{ app_port }}/tcp"
+        state: enabled
+        immediate: yes
